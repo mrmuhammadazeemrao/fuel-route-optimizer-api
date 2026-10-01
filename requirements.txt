@@ -1,0 +1,9 @@
+Django==6.1.1
+djangorestframework==3.18.1
+drf-spectacular==0.30.0
+psycopg[binary]==3.3.6
+django-environ==0.14.0
+requests==2.34.2
+numpy==2.5.3
+scipy==1.18.1
+polyline==2.0.4
