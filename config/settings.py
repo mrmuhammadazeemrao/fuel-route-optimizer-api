@@ -107,3 +107,5 @@ ROUTING_BASE_URL = env("ROUTING_BASE_URL", default="https://router.project-osrm.
 ROUTING_TIMEOUT_SECONDS = env.float("ROUTING_TIMEOUT_SECONDS", default=15.0)
 
 FUEL_PRICES_CSV = BASE_DIR / "data" / "fuel_prices.csv"
+STATION_COORDINATES_CSV = BASE_DIR / "data" / "station_coordinates.csv"
+GEOCODING_CACHE_DIR = BASE_DIR / "data" / "cache"

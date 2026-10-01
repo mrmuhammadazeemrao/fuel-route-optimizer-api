@@ -13,7 +13,8 @@ CSV = """OPIS Truckstop ID,Truckstop Name,Address,City,State,Rack ID,Retail Pric
 
 
 @pytest.fixture
-def csv_path(tmp_path):
+def csv_path(tmp_path, settings):
+    settings.STATION_COORDINATES_CSV = tmp_path / "missing.csv"
     path = tmp_path / "prices.csv"
     path.write_text(CSV)
     return path
@@ -40,3 +41,16 @@ def test_reimport_updates_price_and_keeps_coordinates(csv_path):
     station = FuelStation.objects.get(opis_id=7)
     assert station.retail_price == Decimal("2.95")
     assert (station.latitude, station.longitude) == (36.5, -95.2)
+
+
+@pytest.mark.django_db
+def test_applies_coordinates_file(csv_path, tmp_path):
+    coords = tmp_path / "coords.csv"
+    coords.write_text("opis_id,latitude,longitude,precision\n7,36.564600,-95.215600,exit\n")
+
+    call_command("load_stations", path=csv_path, coordinates=coords)
+
+    station = FuelStation.objects.get(opis_id=7)
+    assert (station.latitude, station.longitude) == (36.5646, -95.2156)
+    assert station.geocode_precision == FuelStation.GeocodePrecision.EXIT
+    assert FuelStation.objects.get(opis_id=20).latitude is None

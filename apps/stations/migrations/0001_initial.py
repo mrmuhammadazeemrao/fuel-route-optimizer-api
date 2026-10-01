@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
                 ('retail_price', models.DecimalField(decimal_places=6, help_text='USD per gallon', max_digits=10)),
                 ('latitude', models.FloatField(blank=True, null=True)),
                 ('longitude', models.FloatField(blank=True, null=True)),
-                ('geocode_precision', models.CharField(blank=True, choices=[('address', 'Street address'), ('city', 'City centroid')], max_length=16)),
+                ('geocode_precision', models.CharField(blank=True, choices=[('exit', 'Interstate exit'), ('city', 'City centroid')], max_length=16)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
             options={

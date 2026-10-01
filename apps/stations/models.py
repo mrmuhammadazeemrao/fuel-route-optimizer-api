@@ -3,7 +3,7 @@ from django.db import models
 
 class FuelStation(models.Model):
     class GeocodePrecision(models.TextChoices):
-        ADDRESS = "address", "Street address"
+        EXIT = "exit", "Interstate exit"
         CITY = "city", "City centroid"
 
     opis_id = models.PositiveIntegerField(unique=True, help_text="OPIS Truckstop ID")
