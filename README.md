@@ -29,6 +29,7 @@ python manage.py runserver
 
 | Method | Path | Description |
 |---|---|---|
+| POST | `/api/v1/route/` | Route between `start` and `finish` (`"City, ST"` or `"lat,lon"`) |
 | GET | `/api/v1/health/` | Health check |
 | GET | `/api/docs/` | Swagger UI |
 | GET | `/api/schema/` | OpenAPI schema (can be imported into Postman) |

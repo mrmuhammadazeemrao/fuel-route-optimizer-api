@@ -10,6 +10,7 @@ from django.conf import settings
 _GAZETTEER_BASE = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2026_Gazetteer/"
 GAZETTEER_PLACES_URL = _GAZETTEER_BASE + "2026_Gaz_place_national.zip"
 GAZETTEER_COUSUBS_URL = _GAZETTEER_BASE + "2026_Gaz_cousubs_national.zip"  # townships
+STATE_BOUNDARIES_URL = "https://www2.census.gov/geo/tiger/GENZ2025/kml/cb_2025_us_state_5m.zip"
 GNIS_URL = (
     "https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/"
     "DomesticNames/DomesticNames_National_Text.zip"

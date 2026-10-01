@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "apps.stations",
+    "apps.routing",
 ]
 
 MIDDLEWARE = [
@@ -108,4 +109,6 @@ ROUTING_TIMEOUT_SECONDS = env.float("ROUTING_TIMEOUT_SECONDS", default=15.0)
 
 FUEL_PRICES_CSV = BASE_DIR / "data" / "fuel_prices.csv"
 STATION_COORDINATES_CSV = BASE_DIR / "data" / "station_coordinates.csv"
+US_PLACES_CSV = BASE_DIR / "data" / "us_places.csv"
+US_STATES_GEOJSON = BASE_DIR / "data" / "us_states.geojson"
 GEOCODING_CACHE_DIR = BASE_DIR / "data" / "cache"

@@ -7,3 +7,4 @@ requests==2.34.2
 numpy==2.5.3
 scipy==1.18.1
 polyline==2.0.4
+shapely==2.1.2
