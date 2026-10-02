@@ -1,4 +1,4 @@
-"""Client for an OSRM-compatible routing server. One HTTP call per route."""
+"""Client for an OSRM-compatible routing server. One HTTP call per request."""
 
 import logging
 from dataclasses import dataclass
@@ -16,6 +16,8 @@ METERS_PER_MILE = 1609.344
 POLYLINE_PRECISION = 6
 
 _session = requests.Session()  # reuses the TLS connection across requests
+# The public OSRM server's usage policy asks clients to identify themselves.
+_session.headers["User-Agent"] = "fuel-route-optimizer/1.0"
 
 
 @dataclass(frozen=True)
@@ -27,11 +29,19 @@ class Route:
 
 
 def fetch_route(start: Location, finish: Location) -> Route:
+    """The fastest route."""
+    return fetch_routes(start, finish)[0]
+
+
+def fetch_routes(start: Location, finish: Location, alternatives: int = 0) -> list[Route]:
+    """The fastest route, then up to `alternatives` alternative routes if the router finds any."""
     url = (
         f"{settings.ROUTING_BASE_URL}/route/v1/driving/"
         f"{start.longitude},{start.latitude};{finish.longitude},{finish.latitude}"
     )
     params = {"overview": "full", "geometries": f"polyline{POLYLINE_PRECISION}"}
+    if alternatives:
+        params["alternatives"] = alternatives
     try:
         response = _session.get(url, params=params, timeout=settings.ROUTING_TIMEOUT_SECONDS)
         data = response.json()
@@ -46,10 +56,12 @@ def fetch_route(start: Location, finish: Location) -> Route:
         logger.warning("OSRM error %s (HTTP %s): %s", code, response.status_code, data)
         raise RoutingUnavailable
 
-    route = data["routes"][0]
-    return Route(
-        distance_miles=route["distance"] / METERS_PER_MILE,
-        duration_hours=route["duration"] / 3600,
-        polyline=route["geometry"],
-        coordinates=polyline.decode(route["geometry"], POLYLINE_PRECISION),
-    )
+    return [
+        Route(
+            distance_miles=route["distance"] / METERS_PER_MILE,
+            duration_hours=route["duration"] / 3600,
+            polyline=route["geometry"],
+            coordinates=polyline.decode(route["geometry"], POLYLINE_PRECISION),
+        )
+        for route in data["routes"]
+    ]

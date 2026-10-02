@@ -29,7 +29,7 @@
       <dt>Distance</dt><dd>{{ trip.route.distance_miles }} mi</dd>
       <dt>Fuel stops</dt><dd>{{ trip.fuel.stops|length }}</dd>
       <dt>Fuel</dt><dd>{{ trip.fuel.total_gallons }} gal</dd>
-      <dt>Total fuel cost</dt><dd>${{ trip.fuel.total_cost }}</dd>
+      <dt>Total fuel cost</dt><dd>${{ trip.fuel.total_cost|floatformat:2 }}</dd>
     </dl>
   </div>
   {{ trip.geojson|json_script:"trip-geojson" }}

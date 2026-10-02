@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from apps.routing.locations import state_boundaries
 from apps.stations.geocoding import sources
 from apps.stations.geocoding.exits import fetch_state_junctions, parse_exit, resolve_exit
 from apps.stations.geocoding.places import PlaceIndex
@@ -47,6 +48,7 @@ class Command(BaseCommand):
                 sources.cached_zip_member(sources.GAZETTEER_COUSUBS_URL, ".txt"),
             ],
             sources.cached_zip_member(sources.GNIS_URL, ".txt"),
+            land=dict(state_boundaries()),
         )
 
         exits = {s.pk: (s.state, ref) for s in stations if (ref := parse_exit(s.address))}

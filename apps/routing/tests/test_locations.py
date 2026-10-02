@@ -1,6 +1,6 @@
 import pytest
 
-from apps.routing.locations import LocationError, resolve_location
+from apps.routing.locations import LocationError, resolve_location, state_at
 
 
 @pytest.mark.parametrize(
@@ -10,12 +10,23 @@ from apps.routing.locations import LocationError, resolve_location
         ("new york, ny", "New York, NY"),
         ("Saint Louis, MO", "St. Louis, MO"),
         ("Nashville, TN", "Nashville-Davidson, TN"),
+        ("Carson City, NV", "Carson City, NV"),
+        ("Boise, ID", "Boise City, ID"),
+        ("Ventura, CA", "San Buenaventura (Ventura), CA"),
+        ("Pecos, TX", "Town of Pecos, TX"),
         ("41.8781,-87.6298", "41.87810,-87.62980 (IL)"),
         (" 47.6062 , -122.3321 ", "47.60620,-122.33210 (WA)"),
     ],
 )
 def test_resolves_us_locations(query, name):
     assert resolve_location(query).name == name
+
+
+@pytest.mark.parametrize("query", ["San Francisco, CA", "Corpus Christi, TX", "Portland, ME"])
+def test_city_points_are_on_land(query):
+    # Their Census internal points are out in the water (San Francisco's by 30 miles).
+    location = resolve_location(query)
+    assert state_at(location.latitude, location.longitude) == query[-2:]
 
 
 @pytest.mark.parametrize(

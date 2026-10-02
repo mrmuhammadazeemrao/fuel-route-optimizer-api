@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from itertools import pairwise
 from unittest.mock import Mock, patch
@@ -98,10 +99,57 @@ def test_route_with_fuel_plan_makes_one_osrm_call(client):
 
 def test_no_stations_along_route_returns_422(client):
     FuelStation.objects.exclude(name="FAR AWAY CHEAP").delete()
-    with osrm_returns(OSRM_OK):
+    with osrm_returns(OSRM_OK) as get:
         response = post(client)
     assert response.status_code == 422
     assert response.json()["detail"] == "No fuel stations found along the route."
+    assert get.call_count == 2  # the fastest route, then a request for alternatives
+
+
+def test_falls_back_to_an_alternative_route_without_a_long_gap(client):
+    # The fastest route goes 500+ miles without a station (like Maine to California through
+    # Quebec and Ontario); the router's alternative passes stations.
+    detour = [COORDS[0], (44.0, -100.0), COORDS[-1]]
+    detour_route = {
+        "distance": sum(haversine_miles(*a, *b) for a, b in pairwise(detour)) * 1609.344,
+        "duration": 60_000.0,
+        "geometry": polyline.encode(detour, 6),
+    }
+    fastest = {"code": "Ok", "routes": [detour_route]}
+    with_alternatives = {"code": "Ok", "routes": [detour_route, *OSRM_OK["routes"]]}
+    get = Mock(
+        side_effect=[
+            Mock(status_code=200, json=Mock(return_value=payload))
+            for payload in (fastest, with_alternatives)
+        ]
+    )
+    with patch("apps.routing.osrm._session.get", get):
+        response = post(client)
+
+    assert response.status_code == 200
+    assert response.json()["route"]["distance_miles"] == round(ROUTE_MILES, 1)
+    assert "ARKANSAS" in [s["name"] for s in response.json()["fuel"]["stops"]]
+    assert get.call_count == 2
+    assert get.call_args.kwargs["params"]["alternatives"] == 2
+
+
+def test_no_zero_gallon_stop_when_the_only_station_is_at_the_finish(client):
+    coords = [(38.7, -89.5), (38.6, -89.5)]  # a short trip ending at the SOUTH IL station
+    miles = haversine_miles(*coords[0], *coords[1])
+    route = {
+        # The router's distance is a little longer than the polyline's.
+        "distance": (miles + 0.02) * 1609.344,
+        "duration": 600.0,
+        "geometry": polyline.encode(coords, 6),
+    }
+    with osrm_returns({"code": "Ok", "routes": [route]}):
+        fuel = post(client).json()["fuel"]
+
+    trip_gallons = (miles + 0.02) / 10
+    assert fuel["stops"] == []
+    assert fuel["initial_gallons"] == pytest.approx(miles / 10, abs=0.005)
+    assert fuel["total_gallons"] == pytest.approx(trip_gallons, abs=0.005)
+    assert fuel["total_cost"] == pytest.approx(trip_gallons * 3.40, abs=0.005)
 
 
 def test_invalid_location_returns_400_without_calling_osrm(client):
@@ -176,12 +224,18 @@ def test_map_page_renders_route_and_stops(client):
     assert "leaflet" in html
     assert '<script id="trip-geojson" type="application/json">' in html
     assert "Chicago, IL → Houston, TX" in html
+    assert re.search(r"<dd>\$\d+\.\d\d</dd>", html)  # total cost with cents
 
 
 def test_map_page_shows_validation_errors(client):
     response = client.get(reverse("route-map"), {"start": "Toronto, ON", "finish": "Houston, TX"})
     assert response.status_code == 400
-    assert "Unknown US state code" in response.content.decode()
+    assert "start: Unknown US state code" in response.content.decode()
+
+    response = client.get(reverse("route-map"))
+    assert "start: This field is required. finish: This field is required." in (
+        response.content.decode()
+    )
 
 
 def test_repeated_request_is_served_from_cache(client):

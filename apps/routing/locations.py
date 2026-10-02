@@ -24,6 +24,9 @@ OTHER_US_STATES = frozenset({"AK", "HI", "PR"})
 FORMAT_HELP = "Use 'City, ST' (e.g. 'Chicago, IL') or 'lat,lon' (e.g. '41.8781,-87.6298')."
 
 _COORDINATES_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$")
+_ALTERNATE_NAME_RE = re.compile(r"(.+) \((.+)\)")  # "San Buenaventura (Ventura)"
+_NAME_PREFIX_RE = re.compile(r"^(?:City|Town|Village) of ")  # "Town of Pecos"
+_COMMON_NAMES = {"Boise City": "Boise"}  # Census name -> the name people use
 
 
 class LocationError(ValueError):
@@ -70,7 +73,7 @@ def _resolve_city(city: str, state: str) -> Location:
 
 
 def state_at(lat: float, lon: float) -> str | None:
-    for state, geometry in _state_boundaries():
+    for state, geometry in state_boundaries():
         if shapely.contains_xy(geometry, lon, lat):
             return state
     return None
@@ -86,14 +89,26 @@ def _places() -> dict[tuple[str, str], Location]:
                 f"{row['name']}, {row['state']}", float(row["latitude"]), float(row["longitude"])
             )
             places.setdefault((normalize(row["name"]), row["state"]), location)
-            if "-" in row["name"]:  # "Nashville-Davidson" is also found as "Nashville"
-                short = row["name"].split("-", 1)[0]
-                aliases.setdefault((normalize(short), row["state"]), location)
+            for alias in _aliases(row["name"]):
+                aliases.setdefault((normalize(alias), row["state"]), location)
     return aliases | places
 
 
+def _aliases(name: str) -> set[str]:
+    """Shorter names a place is also found by: "Nashville-Davidson" -> "Nashville",
+    "Louisville/Jefferson County" -> "Louisville", "San Buenaventura (Ventura)" -> "Ventura",
+    "Town of Pecos" -> "Pecos", "Boise City" -> "Boise"."""
+    match = _ALTERNATE_NAME_RE.fullmatch(name)
+    names = set(match.groups()) if match else {name}
+    for full in list(names):
+        names.add(re.split("[-/]", full, maxsplit=1)[0])
+        names.add(_NAME_PREFIX_RE.sub("", full))
+    names.add(_COMMON_NAMES.get(name, name))
+    return names - {name}
+
+
 @cache
-def _state_boundaries() -> list[tuple[str, shapely.Geometry]]:
+def state_boundaries() -> list[tuple[str, shapely.Geometry]]:
     with settings.US_STATES_GEOJSON.open() as f:
         features = json.load(f)["features"]
     boundaries = []

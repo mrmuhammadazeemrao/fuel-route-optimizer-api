@@ -57,8 +57,8 @@ class FuelSummarySerializer(serializers.Serializer):
     total_cost = serializers.FloatField(help_text="USD for all fuel used on the trip.")
     total_gallons = serializers.FloatField(help_text="Trip distance / MPG.")
     initial_gallons = serializers.FloatField(
-        help_text="Fuel used to reach the first stop (the tank starts empty), "
-        "priced at the first stop and included in the totals."
+        help_text="Fuel used to reach the first station along the route (the tank starts empty), "
+        "priced at that station and included in the totals."
     )
     mpg = serializers.FloatField()
     range_miles = serializers.FloatField()

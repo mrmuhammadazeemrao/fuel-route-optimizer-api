@@ -5,6 +5,7 @@ from django.urls import reverse
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
 from apps.routing.serializers import RouteRequestSerializer, RouteResponseSerializer
@@ -46,5 +47,9 @@ def route_map(request):
 
 def _error_message(exc: APIException) -> str:
     if isinstance(exc, ValidationError) and isinstance(exc.detail, dict):
-        return " ".join(" ".join(map(str, errors)) for errors in exc.detail.values())
+        return " ".join(
+            str(error) if field == api_settings.NON_FIELD_ERRORS_KEY else f"{field}: {error}"
+            for field, errors in exc.detail.items()
+            for error in errors
+        )
     return str(exc.detail)

@@ -4,20 +4,23 @@ from django.core.cache import cache
 
 from apps.routing import osrm
 from apps.routing.exceptions import NoFuelPlanAvailable
-from apps.routing.fuel import Candidate, NoFuelPlan, plan_fuel_stops
+from apps.routing.fuel import Candidate, FuelPlan, NoFuelPlan, plan_fuel_stops
 from apps.routing.locations import Location
 from apps.stations.index import stations_along_route
 
 # Route line in the GeoJSON is simplified to ~50 m: a coast-to-coast route drops from
 # ~35k to ~2.6k points. Station matching always uses the full-resolution route.
 GEOJSON_SIMPLIFY_DEGREES = 0.0005
+# Alternative routes requested when the fastest route has no feasible fuel plan.
+ALTERNATIVE_ROUTES = 2
 
 
 def plan_trip(start: Location, finish: Location) -> dict:
     """Route plus the cheapest fuel stops along it, cached per start/finish pair.
 
-    A cache miss costs exactly one OSRM call; a hit (e.g. the map page right after the API
-    call, or a repeated request) costs none.
+    A cache miss costs one OSRM call (two in the rare case that the fastest route has no
+    feasible fuel plan); a hit (e.g. the map page right after the API call, or a repeated
+    request) costs none.
     """
     key = _cache_key(start, finish)
     trip = cache.get(key)
@@ -42,22 +45,15 @@ def _cache_key(start: Location, finish: Location) -> str:
 
 def _plan_trip(start: Location, finish: Location) -> dict:
     route = osrm.fetch_route(start, finish)
-
-    on_route = stations_along_route(route.coordinates, settings.FUEL_STOP_MAX_OFF_ROUTE_MILES)
-    candidates = [Candidate(s.mile, s.price, ref=s) for s in on_route]
     try:
-        plan = plan_fuel_stops(
-            candidates,
-            trip_miles=route.distance_miles,
-            range_miles=settings.VEHICLE_RANGE_MILES,
-            mpg=settings.VEHICLE_MPG,
-            stop_cost=settings.FUEL_STOP_COST_USD,
-        )
+        plan = _plan_fuel(route)
     except NoFuelPlan as exc:
-        raise NoFuelPlanAvailable(str(exc)) from exc
+        route, plan = _plan_on_alternative_route(start, finish, exc)
 
     stops = []
     for purchase in plan.purchases:
+        if round(purchase.gallons, 2) == 0:
+            continue  # e.g. the only station is at the finish: nothing is left to buy there
         match = purchase.candidate.ref
         station = match.station
         stops.append(
@@ -93,6 +89,33 @@ def _plan_trip(start: Location, finish: Location) -> dict:
         },
         "geojson": _geojson(route.coordinates, start, finish, stops),
     }
+
+
+def _plan_fuel(route: osrm.Route) -> FuelPlan:
+    on_route = stations_along_route(route.coordinates, settings.FUEL_STOP_MAX_OFF_ROUTE_MILES)
+    return plan_fuel_stops(
+        [Candidate(s.mile, s.price, ref=s) for s in on_route],
+        trip_miles=route.distance_miles,
+        range_miles=settings.VEHICLE_RANGE_MILES,
+        mpg=settings.VEHICLE_MPG,
+        stop_cost=settings.FUEL_STOP_COST_USD,
+    )
+
+
+def _plan_on_alternative_route(
+    start: Location, finish: Location, error: NoFuelPlan
+) -> tuple[osrm.Route, FuelPlan]:
+    """First alternative route with a feasible fuel plan, from one more OSRM call.
+
+    The fastest route can run 500+ miles without a station: Maine to California goes through
+    Quebec and Ontario, and the price data has no stations there. Its alternative stays in the US.
+    """
+    for route in osrm.fetch_routes(start, finish, alternatives=ALTERNATIVE_ROUTES)[1:]:
+        try:
+            return route, _plan_fuel(route)
+        except NoFuelPlan:
+            continue
+    raise NoFuelPlanAvailable(str(error)) from error
 
 
 def _geojson(coordinates, start: Location, finish: Location, stops: list[dict]) -> dict:

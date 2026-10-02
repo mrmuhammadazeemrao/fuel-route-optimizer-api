@@ -6,7 +6,9 @@ import re
 import unicodedata
 from pathlib import Path
 
-from apps.stations.geocoding.geo import haversine_miles, mean_point
+import shapely
+
+from apps.stations.geocoding.geo import haversine_miles, is_offshore, mean_point
 
 Point = tuple[float, float]
 
@@ -48,13 +50,23 @@ def _gazetteer_names(raw: str) -> list[str]:
 
 
 class PlaceIndex:
-    def __init__(self, gazetteer_paths: list[Path], gnis_path: Path):
+    def __init__(
+        self,
+        gazetteer_paths: list[Path],
+        gnis_path: Path,
+        land: dict[str, shapely.Geometry] | None = None,
+    ):
+        """`land`: state boundaries; Census points out in the water yield to GNIS points."""
         self._points: dict[tuple[str, str], Point] = {}
+        self._offshore: dict[tuple[str, str], Point] = {}
         self._ambiguous: set[tuple[str, str]] = set()
+        self._land = land or {}
         fips_to_usps = {}
         for path in gazetteer_paths:
             fips_to_usps |= self._load_gazetteer(path)
         self._load_gnis(gnis_path, fips_to_usps)
+        for key, point in self._offshore.items():  # still better than nothing
+            self._points.setdefault(key, point)
 
     def lookup(self, city: str, state: str) -> Point | None:
         return self._points.get((normalize(city), state.upper()))
@@ -66,8 +78,12 @@ class PlaceIndex:
                 state = row["USPS"]
                 fips_to_usps[row["GEOID"][:2]] = state
                 point = (float(row["INTPTLAT"]), float(row["INTPTLONG"]))
+                # A place's internal point can be out in its water area (Corpus Christi's is by
+                # Padre Island, 14 miles from downtown); the GNIS town centre is used instead.
+                land = self._land.get(state)
+                points = self._offshore if land and is_offshore(land, *point) else self._points
                 for name in _gazetteer_names(row["NAME"]):
-                    self._points.setdefault((name, state), point)
+                    points.setdefault((name, state), point)
         return fips_to_usps
 
     def _load_gnis(self, path: Path, fips_to_usps: dict[str, str]) -> None:
