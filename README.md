@@ -33,7 +33,17 @@ python manage.py runserver
 | GET | `/api/v1/route/map/?start=...&finish=...` | HTML map of the route and fuel stops (the `map_url` in the response) |
 | GET | `/api/v1/health/` | Health check |
 | GET | `/api/docs/` | Swagger UI |
-| GET | `/api/schema/` | OpenAPI schema (can be imported into Postman) |
+| GET | `/api/schema/` | OpenAPI schema |
+
+```bash
+curl -X POST http://localhost:8000/api/v1/route/ \
+  -H "Content-Type: application/json" \
+  -d '{"start": "Chicago, IL", "finish": "Houston, TX"}'
+```
+
+The response has the route distance, each fuel stop (name, address, price, gallons, cost), the total gallons and total fuel cost, the route as GeoJSON, and a `map_url`.
+
+A Postman collection with example requests and tests is in `postman/`.
 
 ## Station data
 
