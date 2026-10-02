@@ -19,8 +19,18 @@ ROUTE_STEP_MILES = 0.5
 
 
 @dataclass(frozen=True)
+class StationInfo:
+    name: str
+    address: str
+    city: str
+    state: str
+    latitude: float
+    longitude: float
+
+
+@dataclass(frozen=True)
 class StationOnRoute:
-    station: FuelStation
+    station: StationInfo
     price: float  # USD per gallon
     mile: float  # distance from the start along the route
     off_route_miles: float
@@ -28,7 +38,7 @@ class StationOnRoute:
 
 @dataclass(frozen=True)
 class _StationArrays:
-    stations: list[FuelStation]
+    stations: list[StationInfo]
     lat: np.ndarray
     lon: np.ndarray
     xyz: np.ndarray
@@ -37,11 +47,18 @@ class _StationArrays:
 
 @cache
 def _station_arrays() -> _StationArrays:
-    stations = list(FuelStation.objects.filter(latitude__isnull=False).order_by("opis_id"))
+    rows = (
+        FuelStation.objects.filter(latitude__isnull=False)
+        .order_by("opis_id")
+        .values_list("name", "address", "city", "state", "latitude", "longitude", "retail_price")
+    )
+    stations, prices = [], []
+    for *info, price in rows:
+        stations.append(StationInfo(*info))
+        prices.append(float(price))
     lat = np.array([s.latitude for s in stations])
     lon = np.array([s.longitude for s in stations])
-    price = np.array([float(s.retail_price) for s in stations])
-    return _StationArrays(stations, lat, lon, _to_xyz(lat, lon), price)
+    return _StationArrays(stations, lat, lon, _to_xyz(lat, lon), np.array(prices))
 
 
 def stations_along_route(

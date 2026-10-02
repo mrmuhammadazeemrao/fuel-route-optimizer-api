@@ -1,5 +1,6 @@
 import shapely
 from django.conf import settings
+from django.core.cache import cache
 
 from apps.routing import osrm
 from apps.routing.exceptions import NoFuelPlanAvailable
@@ -13,7 +14,33 @@ GEOJSON_SIMPLIFY_DEGREES = 0.0005
 
 
 def plan_trip(start: Location, finish: Location) -> dict:
-    """Route (one OSRM call) plus the cheapest fuel stops along it."""
+    """Route plus the cheapest fuel stops along it, cached per start/finish pair.
+
+    A cache miss costs exactly one OSRM call; a hit (e.g. the map page right after the API
+    call, or a repeated request) costs none.
+    """
+    key = _cache_key(start, finish)
+    trip = cache.get(key)
+    if trip is None:
+        trip = _plan_trip(start, finish)
+        cache.set(key, trip)
+    return trip
+
+
+def _cache_key(start: Location, finish: Location) -> str:
+    points = (
+        f"{start.latitude:.5f},{start.longitude:.5f};{finish.latitude:.5f},{finish.longitude:.5f}"
+    )
+    knobs = (
+        settings.VEHICLE_RANGE_MILES,
+        settings.VEHICLE_MPG,
+        settings.FUEL_STOP_COST_USD,
+        settings.FUEL_STOP_MAX_OFF_ROUTE_MILES,
+    )
+    return f"trip:v1:{points}:{':'.join(map(str, knobs))}"
+
+
+def _plan_trip(start: Location, finish: Location) -> dict:
     route = osrm.fetch_route(start, finish)
 
     on_route = stations_along_route(route.coordinates, settings.FUEL_STOP_MAX_OFF_ROUTE_MILES)

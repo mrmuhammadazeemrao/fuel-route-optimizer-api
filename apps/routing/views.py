@@ -30,8 +30,8 @@ class RouteView(APIView):
     def post(self, request):
         trip = _plan_from(request.data)
         query = urlencode({"start": request.data["start"], "finish": request.data["finish"]})
-        trip["map_url"] = request.build_absolute_uri(f"{reverse('route-map')}?{query}")
-        return Response(RouteResponseSerializer(trip).data)
+        map_url = request.build_absolute_uri(f"{reverse('route-map')}?{query}")
+        return Response(RouteResponseSerializer({**trip, "map_url": map_url}).data)
 
 
 def route_map(request):

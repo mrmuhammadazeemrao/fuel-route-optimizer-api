@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import polyline
 import pytest
 import requests
+from django.core.cache import cache
 from django.urls import reverse
 
 from apps.stations.geocoding.geo import haversine_miles
@@ -35,6 +36,7 @@ OSRM_OK = {
 @pytest.fixture(autouse=True)
 def stations(db):
     _station_arrays.cache_clear()
+    cache.clear()
     rows = [
         (1, "START", 41.837045, -87.684939, "3.50"),
         (2, "SOUTH IL", 38.6, -89.5, "3.40"),
@@ -180,3 +182,30 @@ def test_map_page_shows_validation_errors(client):
     response = client.get(reverse("route-map"), {"start": "Toronto, ON", "finish": "Houston, TX"})
     assert response.status_code == 400
     assert "Unknown US state code" in response.content.decode()
+
+
+def test_repeated_request_is_served_from_cache(client):
+    with osrm_returns(OSRM_OK) as get:
+        first = post(client).json()
+        second = post(client, start="chicago, il", finish="Houston, TX").json()
+
+    get.assert_called_once()
+    assert second.pop("map_url") != first.pop("map_url")  # echoes each request's own input
+    assert second == first
+
+
+def test_map_after_api_call_makes_no_extra_routing_call(client):
+    with osrm_returns(OSRM_OK) as get:
+        map_url = post(client).json()["map_url"]
+        response = client.get(map_url)
+
+    assert response.status_code == 200
+    get.assert_called_once()
+
+
+def test_routing_errors_are_not_cached(client):
+    with osrm_returns(exc=requests.Timeout()):
+        assert post(client).status_code == 503
+    with osrm_returns(OSRM_OK) as get:
+        assert post(client).status_code == 200
+    get.assert_called_once()
