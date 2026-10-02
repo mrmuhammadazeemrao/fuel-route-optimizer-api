@@ -40,7 +40,34 @@ class RouteSummarySerializer(serializers.Serializer):
     polyline = serializers.CharField(help_text="Encoded polyline (precision 6) of the route.")
 
 
+class FuelStopSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    address = serializers.CharField()
+    city = serializers.CharField()
+    state = serializers.CharField()
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
+    price_per_gallon = serializers.FloatField()
+    mile = serializers.FloatField(help_text="Distance from the start along the route.")
+    off_route_miles = serializers.FloatField()
+    gallons = serializers.FloatField()
+    cost = serializers.FloatField()
+
+
+class FuelSummarySerializer(serializers.Serializer):
+    total_cost = serializers.FloatField(help_text="USD for all fuel used on the trip.")
+    total_gallons = serializers.FloatField(help_text="Trip distance / MPG.")
+    initial_gallons = serializers.FloatField(
+        help_text="Fuel used to reach the first stop (the tank starts empty), "
+        "priced at the first stop and included in the totals."
+    )
+    mpg = serializers.FloatField()
+    range_miles = serializers.FloatField()
+    stops = FuelStopSerializer(many=True)
+
+
 class RouteResponseSerializer(serializers.Serializer):
     start = LocationSerializer()
     finish = LocationSerializer()
     route = RouteSummarySerializer()
+    fuel = FuelSummarySerializer()

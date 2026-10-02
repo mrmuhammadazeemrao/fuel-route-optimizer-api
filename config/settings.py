@@ -102,6 +102,11 @@ SPECTACULAR_SETTINGS = {
 # Trip / vehicle parameters
 VEHICLE_RANGE_MILES = env.float("VEHICLE_RANGE_MILES", default=500.0)
 VEHICLE_MPG = env.float("VEHICLE_MPG", default=10.0)
+# Stations farther than this from the route are not considered for fuel stops.
+FUEL_STOP_MAX_OFF_ROUTE_MILES = env.float("FUEL_STOP_MAX_OFF_ROUTE_MILES", default=3.0)
+# Cost attributed to each stop (driver time) so plans don't stop to save a few cents.
+# Used only to choose stops; not included in the reported fuel cost. 0 = cheapest fuel only.
+FUEL_STOP_COST_USD = env.float("FUEL_STOP_COST_USD", default=10.0)
 
 # External routing service (OSRM-compatible)
 ROUTING_BASE_URL = env("ROUTING_BASE_URL", default="https://router.project-osrm.org")

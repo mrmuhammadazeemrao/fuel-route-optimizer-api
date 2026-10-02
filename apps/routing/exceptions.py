@@ -12,3 +12,9 @@ class RoutingUnavailable(APIException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     default_detail = "The routing service is unavailable. Please try again shortly."
     default_code = "routing_unavailable"
+
+
+class NoFuelPlanAvailable(APIException):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "No refuelling plan is possible along this route."
+    default_code = "no_fuel_plan"
