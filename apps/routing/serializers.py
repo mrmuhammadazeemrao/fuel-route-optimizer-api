@@ -37,7 +37,6 @@ class LocationSerializer(serializers.Serializer):
 class RouteSummarySerializer(serializers.Serializer):
     distance_miles = serializers.FloatField()
     duration_hours = serializers.FloatField()
-    polyline = serializers.CharField(help_text="Encoded polyline (precision 6) of the route.")
 
 
 class FuelStopSerializer(serializers.Serializer):
@@ -71,3 +70,8 @@ class RouteResponseSerializer(serializers.Serializer):
     finish = LocationSerializer()
     route = RouteSummarySerializer()
     fuel = FuelSummarySerializer()
+    geojson = serializers.JSONField(
+        help_text="GeoJSON FeatureCollection: the route line plus start, finish and fuel stop "
+        "points (`properties.kind`)."
+    )
+    map_url = serializers.URLField(help_text="HTML map of this route and its fuel stops.")

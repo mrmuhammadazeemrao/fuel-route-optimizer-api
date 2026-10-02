@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ trip.start.name }} → {{ trip.finish.name }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+        integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+        crossorigin="anonymous">
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    body { font: 14px/1.4 system-ui, sans-serif; }
+    .summary { position: absolute; top: 12px; right: 12px; z-index: 1000; background: #fff;
+               padding: 12px 14px; border-radius: 8px; box-shadow: 0 2px 10px rgb(0 0 0 / .2);
+               max-width: min(320px, calc(100% - 48px)); }
+    .summary h1 { font-size: 15px; margin: 0 0 6px; }
+    .summary dl { display: grid; grid-template-columns: auto auto; gap: 2px 12px; margin: 0; }
+    .summary dd { margin: 0; text-align: right; font-weight: 600; }
+    .pin { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+           color: #fff; font-weight: 700; font-size: 12px; border: 2px solid #fff;
+           box-shadow: 0 1px 4px rgb(0 0 0 / .4); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="summary">
+    <h1>{{ trip.start.name }} → {{ trip.finish.name }}</h1>
+    <dl>
+      <dt>Distance</dt><dd>{{ trip.route.distance_miles }} mi</dd>
+      <dt>Fuel stops</dt><dd>{{ trip.fuel.stops|length }}</dd>
+      <dt>Fuel</dt><dd>{{ trip.fuel.total_gallons }} gal</dd>
+      <dt>Total fuel cost</dt><dd>${{ trip.fuel.total_cost }}</dd>
+    </dl>
+  </div>
+  {{ trip.geojson|json_script:"trip-geojson" }}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+          integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
+          crossorigin="anonymous"></script>
+  <script>
+    const data = JSON.parse(document.getElementById("trip-geojson").textContent);
+    const map = L.map("map");
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    const pin = (label, color) => L.divIcon({
+      className: "", iconSize: [24, 24],
+      html: `<div class="pin" style="background:${color}">${label}</div>`,
+    });
+    const escape = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+    const popup = (p) => p.kind === "fuel_stop"
+      ? `<b>${p.stop}. ${escape(p.name)}</b><br>${escape(p.address)}<br>Mile ${p.mile}<br>`
+        + `$${p.price_per_gallon.toFixed(3)}/gal × ${p.gallons} gal = <b>$${p.cost.toFixed(2)}</b>`
+      : `<b>${p.kind === "start" ? "Start" : "Finish"}</b><br>${escape(p.name)}`;
+
+    const layer = L.geoJSON(data, {
+      style: { color: "#2563eb", weight: 5, opacity: 0.8 },
+      pointToLayer: (feature, latlng) => {
+        const p = feature.properties;
+        const icon = p.kind === "fuel_stop" ? pin(p.stop, "#ea580c")
+          : pin(p.kind === "start" ? "A" : "B", p.kind === "start" ? "#16a34a" : "#dc2626");
+        return L.marker(latlng, { icon });
+      },
+      onEachFeature: (feature, l) => {
+        if (feature.geometry.type === "Point") l.bindPopup(popup(feature.properties));
+      },
+    }).addTo(map);
+    map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+  </script>
+</body>
+</html>

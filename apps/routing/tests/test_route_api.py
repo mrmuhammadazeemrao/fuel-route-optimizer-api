@@ -77,7 +77,6 @@ def test_route_with_fuel_plan_makes_one_osrm_call(client):
     assert body["start"]["name"] == "Chicago, IL"
     assert body["finish"]["name"] == "Houston, TX"
     assert body["route"]["distance_miles"] == round(ROUTE_MILES, 1)
-    assert polyline.decode(body["route"]["polyline"], 6) == COORDS
 
     fuel = body["fuel"]
     names = [s["name"] for s in fuel["stops"]]
@@ -144,3 +143,40 @@ def test_non_json_response_returns_503(client):
     with patch("apps.routing.osrm._session.get", return_value=response_mock):
         response = post(client)
     assert response.status_code == 503
+
+
+def test_response_includes_geojson_and_map_url(client):
+    with osrm_returns(OSRM_OK):
+        body = post(client).json()
+
+    features = body["geojson"]["features"]
+    kinds = [f["properties"]["kind"] for f in features]
+    assert kinds[:3] == ["route", "start", "finish"]
+    assert kinds.count("fuel_stop") == len(body["fuel"]["stops"])
+    route_line = features[0]["geometry"]
+    assert route_line["type"] == "LineString"
+    assert route_line["coordinates"][0] == pytest.approx(
+        [-87.684939, 41.837045], abs=1e-5
+    )  # lon, lat
+    assert body["map_url"] == (
+        "http://testserver/api/v1/route/map/?start=Chicago%2C+IL&finish=Houston%2C+TX"
+    )
+
+
+def test_map_page_renders_route_and_stops(client):
+    with osrm_returns(OSRM_OK):
+        response = client.get(
+            reverse("route-map"), {"start": "Chicago, IL", "finish": "Houston, TX"}
+        )
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "leaflet" in html
+    assert '<script id="trip-geojson" type="application/json">' in html
+    assert "Chicago, IL → Houston, TX" in html
+
+
+def test_map_page_shows_validation_errors(client):
+    response = client.get(reverse("route-map"), {"start": "Toronto, ON", "finish": "Houston, TX"})
+    assert response.status_code == 400
+    assert "Unknown US state code" in response.content.decode()

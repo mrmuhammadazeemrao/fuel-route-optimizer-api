@@ -30,6 +30,7 @@ python manage.py runserver
 | Method | Path | Description |
 |---|---|---|
 | POST | `/api/v1/route/` | Route between `start` and `finish` (`"City, ST"` or `"lat,lon"`) with the cheapest fuel stops and total fuel cost |
+| GET | `/api/v1/route/map/?start=...&finish=...` | HTML map of the route and fuel stops (the `map_url` in the response) |
 | GET | `/api/v1/health/` | Health check |
 | GET | `/api/docs/` | Swagger UI |
 | GET | `/api/schema/` | OpenAPI schema (can be imported into Postman) |
